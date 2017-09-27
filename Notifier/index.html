@@ -1,0 +1,206 @@
+<html>
+<head></head>
+<body>
+
+ <!-- <h1> Register user form </h1>
+
+<form action="/action_page.php" method="get" id="nameform">
+  First name: <input type="text" name="fname"><br>
+  Last name: <input type="text" name="lname"><br>
+</form>
+
+<button type="submit" form="nameform" value="Submit">Submit</button> -->
+
+<h1> Send data to the selected user </h1>
+
+<button id = "id_btn_connect" onclick="connect();">Connect to notifications server</button>
+
+</br>
+
+<div id = "id_div_users"></div>
+
+</br>
+
+<table>
+  <tr>
+    <td>Text</td>
+    <td><input id="id_input_text" style='width:100%'></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Image</td>
+    <td><input type="file" id="id_input_fileupload" onchange="previewFile()" accept="image/x-png,image/gif,image/jpeg"/></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Link</td>
+    <td><input id="id_input_link" style='width:100%'></td>
+    <td><input id="id_checkbox_link" type="checkbox"> Open link force</td>
+  </tr>
+</table>
+
+</br>
+
+<button onclick="send();">Send to user</button>
+
+Selected user : <span id="id_span_selected_user">...</span>
+
+</br></br>
+
+<img id = "id_image" src="" height="200" alt="No image selected...">
+
+<script>
+
+var connection;
+
+var online_users = {};
+
+var selected_user;
+
+var image_base64 = "";
+
+function connect()
+{
+    if (!connection)
+    {
+        connection = new WebSocket('wss://nasa73.science/ws2/');
+
+        connection.onopen = function () {
+
+          connection.send('admin'); 
+
+          console.log('WebSocket onopen ');
+        };
+
+        // Log errors
+        connection.onerror = function (error) {
+
+          console.log(error);
+        };
+
+        // Log messages from the server
+        connection.onmessage = function (e) {
+
+          console.log('Server: ' + e.data);
+
+          var json = JSON.parse(e.data);
+          
+          if (json)
+          {
+
+            var div = document.getElementById("id_div_users");
+
+            while (div.firstChild) {
+
+                div.removeChild(div.firstChild);
+            }
+
+            var ul = document.createElement('ul');
+
+            div.appendChild(ul);
+
+            if (json['online_users']){
+
+                online_users = json['online_users'];
+
+                for (var id in online_users)
+                {
+                    if (online_users[id])
+                    {
+                        var li = document.createElement('li');
+
+                        ul.appendChild(li);
+
+                        var login = online_users[id];
+
+                        var user_link = document.createElement('a');
+
+                        var user_link_login = document.createTextNode(login);
+
+                        user_link.appendChild(user_link_login);
+
+                        user_link.user_id = id;
+                        user_link.user_login = login;
+
+                        user_link.href = "#";
+
+                        user_link.onclick = function(e) {
+
+                            e.preventDefault = true;
+
+                            document.getElementById("id_span_selected_user").innerHTML = this.user_login;
+
+                            selected_user = {
+                                id : this.user_id
+                            };
+                        };
+
+                        li.appendChild(user_link);
+                    }
+                }
+            }
+          }
+
+        };
+
+        document.getElementById("id_btn_connect").disabled = true;
+
+        setInterval(function(){
+            if (connection)
+            {
+                connection.send("ping");
+            }
+        },5000);
+    }
+};
+
+function send()
+{
+    if (connection && selected_user && online_users[selected_user.id])
+    {
+        var text = document.getElementById("id_input_text").value;
+        var pic = image_base64;
+        var link = document.getElementById("id_input_link").value;
+
+        var b_force_open = document.getElementById("id_checkbox_link").checked;
+
+        var json_str = JSON.stringify({
+            "to" : selected_user.id,
+            "text" : text,
+            "pic" : pic,
+            "link" : link,
+            'force_open' : b_force_open
+        });
+
+        connection.send(json_str);
+    }
+    else
+    {
+        document.getElementById("id_span_selected_user").innerHTML = "Error : no connection or no user selected";
+    }
+}
+
+function previewFile() {
+
+  var preview = document.getElementById("id_image");
+  var file    = document.getElementById("id_input_fileupload").files[0];
+
+  var reader  = new FileReader();
+
+  preview.src = "";
+  image_base64 = "";
+
+  reader.addEventListener("load", function () {
+    preview.src = reader.result;
+    image_base64 = reader.result;
+  }, false);
+
+  if (file) {
+    reader.readAsDataURL(file);
+  }
+}
+
+</script>
+
+</body>
+</html>

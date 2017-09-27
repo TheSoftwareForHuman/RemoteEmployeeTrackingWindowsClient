@@ -1,0 +1,5 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Settings>
+  <add key="hostname" value="https://nasa73.science" />
+  <add key="ws" value="wss://nasa73.science/ws2/" />
+</Settings>

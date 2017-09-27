@@ -1,0 +1,3 @@
+win :
+
+certutil -decode input_fileame.bin output_filename.zip
