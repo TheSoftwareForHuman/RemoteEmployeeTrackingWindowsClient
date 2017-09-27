@@ -1,0 +1,98 @@
+-----------------------
+1) install dependencies
+composer install
+composer require "tymon/jwt-auth:*"
+php artisan migrate
+php artisan vendor:publish --provider="Tymon\JWTAuth\Providers\JWTAuthServiceProvider"
+php artisan jwt:generate
+
+2) config .env
+open .env file in root folder
+set a db connection login, password, host
+
+3) install ws tunnel module for apache
+sudo a2enmod proxy_wstunnel
+service apache2 restart
+
+4) websocket server --> start it manually on server reboot or add to the scripts
+
+start up server ---> nohup php artisan websocket:init > websocket.log &       
+to kill         >>   ps -ef > kill #
+
+check mem       ---> watch -n 5 free -m
+check net       ---> netstat -atun >> server should take 8443 tcp port on listen
+
+5) php.ini config
+post_max_size = 100M
+upload_max_filesize = 100M
+
+6) apache config
+
+000-default.conf >>
+<VirtualHost *:80>
+        ServerAdmin webmaster@localhost
+        DocumentRoot /var/www/html/api/public
+
+        <Directory /var/www/html/api/public>
+            Options Indexes FollowSymLinks
+            AllowOverride All
+            Require all granted
+        </Directory>
+
+        ErrorLog ${APACHE_LOG_DIR}/error.log
+        CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+        <IfModule mod_dir.c>
+            DirectoryIndex index.php index.pl index.cgi index.html index.xhtml index.htm
+        </IfModule>
+
+        RewriteEngine on
+        RewriteCond %{SERVER_NAME} =nasa73.science
+        RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
+
+        ProxyRequests Off
+        ProxyPass "/ws2/"  "ws://0.0.0.0:8443/"
+        ProxyPass "/wss2/" "wss://0.0.0.0:8443/"
+
+        ProxyPassReverse "/ws2/"  "ws://0.0.0.0:8443/"
+        ProxyPassReverse "/wss2/" "wss://0.0.0.0:8443/"
+
+</VirtualHost>
+
+000-default-le-ssl.conf >>
+<IfModule mod_ssl.c>
+<VirtualHost *:443>
+        ServerAdmin webmaster@localhost
+        DocumentRoot /var/www/html/api/public
+
+        <Directory /var/www/html/api/public>
+            Options Indexes FollowSymLinks
+            AllowOverride All
+            Require all granted
+        </Directory>
+
+        ErrorLog ${APACHE_LOG_DIR}/error.log
+        CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+        <IfModule mod_dir.c>
+            DirectoryIndex index.php index.pl index.cgi index.html index.xhtml index.htm
+        </IfModule>
+
+        SSLCertificateFile /etc/letsencrypt/live/nasa73.science/fullchain.pem
+        SSLCertificateKeyFile /etc/letsencrypt/live/nasa73.science/privkey.pem
+        
+        Include /etc/letsencrypt/options-ssl-apache.conf
+        
+        ServerName nasa73.science
+
+        ProxyRequests Off
+        ProxyPass "/ws2/"  "ws://0.0.0.0:8443/"
+        ProxyPass "/wss2/" "wss://0.0.0.0:8443/"
+
+        ProxyPassReverse "/ws2/"  "ws://0.0.0.0:8443/"
+        ProxyPassReverse "/wss2/" "wss://0.0.0.0:8443/"
+</VirtualHost>
+</IfModule>
+
+
+

@@ -388,8 +388,6 @@ namespace LoginApplication
                 {
                     m_ZipTimer_interval = m_ZipTimer_interval_initial;
 
-                    m_ZipTimer.Enabled = false;
-
                     ZipAndUploadFunct();
                 }
             });
@@ -475,11 +473,16 @@ namespace LoginApplication
                     m_wsConnectionTimer.Enabled = false;
                 }
 
-                fm_Main.TrackTime(false);
+                fm_Main.TrackTime(true);
+
                 fm_Main.Hide();
                 fm_Login.Show();
 
                 fm_Active = fm_Login;
+
+                m_ScreenshootTimer_interval = m_ScreenshootTimer_interval_initial;
+                m_TrackHooksTimer_interval = m_TrackHooksTimer_interval_initial;
+                m_ZipTimer_interval = m_ZipTimer_interval_initial; 
 
                 m_ScreenshootTimer.Enabled = false;
                 m_ZipTimer.Enabled = false;
@@ -557,15 +560,13 @@ namespace LoginApplication
 
             m_bTackingScreenshoot = true;
 
-            m_ScreenshootTimer.Enabled = false;
-
             int screenshoot_timer_interval_sec = m_ScreenshootTimer_interval / 1000;
 
-            string screenshoot_time_before_current_time_str = DateTime.Now.AddSeconds(-screenshoot_timer_interval_sec).ToString(@"yyyy-MM-dd HH:mm:ss");
+            string screenshoot_time_before_current_time_str = DateTime.Now.AddSeconds(-screenshoot_timer_interval_sec).ToString("yyyy-MM-dd HH:mm:ss");
 
-            string current_time_filename_str = DateTime.Now.ToString(@"yyyy.MM.dd-HH.mm.ss");
+            string current_time_filename_str = DateTime.Now.ToString("yyyy.MM.dd-HH.mm.ss");
 
-            string current_time_str = DateTime.Now.ToString(@"yyyy-MM-dd HH:mm:ss");
+            string current_time_str = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
             var bw = new BackgroundWorker();
 
@@ -660,7 +661,7 @@ namespace LoginApplication
 
                         try
                         {
-                            string sql = "delete from users_click where start_time >= '" + screenshoot_time_before_current_time_str + "' end_time <='" + current_time_str + "';";
+                            string sql = "delete from users_click where start_time >= '" + screenshoot_time_before_current_time_str + "' and end_time <='" + current_time_str + "';";
 
                             sql += "insert or replace into work_month_tracking (login, month, time) values ('" + login + "', strftime('%Y-%m','now'), " + fm_Main.current_month_seconds + ");";
                             sql += "insert or replace into work_current_day_tracking (login, current_day, time) values ('" + login + "', strftime('%Y-%m-%d','now'), " + fm_Main.current_day_seconds + ");";
@@ -680,8 +681,6 @@ namespace LoginApplication
                 }
 
                 m_bTackingScreenshoot = false;
-
-                m_ScreenshootTimer.Enabled = true && !bForceStopTimers;
             };
 
             bw.RunWorkerAsync();
@@ -936,8 +935,6 @@ namespace LoginApplication
                 }
 
                 m_bZipAndUploading = false;
-
-                m_ZipTimer.Enabled = true && !bForceStopTimers;
             };
 
             bw.RunWorkerAsync();
