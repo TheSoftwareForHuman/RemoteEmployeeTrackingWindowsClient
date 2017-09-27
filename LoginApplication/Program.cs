@@ -141,7 +141,7 @@ namespace LoginApplication
         private string m_Token = string.Empty;
 
         const string db_name = "db.sqlite";
-        private static Mutex m_FileSystemReadWriteMutex = new Mutex();
+        private readonly Mutex m_FileSystemReadWriteMutex = new Mutex();
 
         MouseHookListener mouseHookManager;
         KeyboardHookListener keyboardHookManager;
@@ -331,11 +331,19 @@ namespace LoginApplication
             // 3. We will track the number of time keyboard click
             keyboardHookManager = new KeyboardHookListener(new GlobalHooker());
             keyboardHookManager.Enabled = true;
-            keyboardHookManager.KeyDown += (object sender, KeyEventArgs e) => { keyDownCount++; };
+            keyboardHookManager.KeyDown += (object sender, KeyEventArgs e) => 
+            {
+                if (m_TrackHooksTimer != null && m_TrackHooksTimer.Enabled)
+                    keyDownCount++;
+            };
 
             mouseHookManager = new MouseHookListener(new GlobalHooker());
             mouseHookManager.Enabled = true;
-            mouseHookManager.MouseClick += (object sender, MouseEventArgs e) => { mouseClickCount++; };
+            mouseHookManager.MouseClick += (object sender, MouseEventArgs e) => 
+            {
+                if (m_TrackHooksTimer != null && m_TrackHooksTimer.Enabled)
+                    mouseClickCount++; 
+            };
 
             // 2. Every 3 minutes we will take one screenshot and save it in the file system.
             m_ScreenshootTimer = new System.Windows.Forms.Timer();
@@ -367,12 +375,19 @@ namespace LoginApplication
                 }
                 else
                 {
-                    // Every second update the database. In this way we also do not need to worry about button clicking or anything
+                    // Every 10 second update the database. In this way we also do not need to worry about button clicking or anything
 
                     if (m_Token == null || m_Token.Length == 0)
                         return;
 
-                    TrackHooks(false);
+                    int elapsed_secs = m_TrackHooksTimer_interval / 1000;
+
+                    int mod = elapsed_secs % 10;
+
+                    if (mod == 0)
+                    {
+                        TrackHooks(false);
+                    }
                 }
             });
             m_TrackHooksTimer.Interval = 1000;
@@ -708,13 +723,14 @@ namespace LoginApplication
             string time_current_month = fm_Main.current_month_seconds.ToString();
 
             string current_time_str = DateTime.Now.ToString(@"yyyy-MM-dd HH:mm:ss");
+            string current_time_plus_second_str = DateTime.Now.AddSeconds(1).ToString(@"yyyy-MM-dd HH:mm:ss");
 
             m_FileSystemReadWriteMutex.WaitOne();
 
+            m_dbConnection.Open();
+
             try
             {
-                m_dbConnection.Open();
-
                 string sql = "";
 
                 if (bFullUpdate)
@@ -727,8 +743,8 @@ namespace LoginApplication
                         "'" + login + "'," +
                         m_clicks + "," +
                         k_clikcs + "," +
-                        "'" + current_time_str + "'," +
-                        "'" + current_time_str + "'" +
+                        "'" + current_time_plus_second_str + "'," +
+                        "'" + current_time_plus_second_str + "'" +
                         ");";
 
                     mouseClickCount = 0;
@@ -741,13 +757,13 @@ namespace LoginApplication
 
                 SQLiteCommand command = new SQLiteCommand(sql, m_dbConnection);
                 command.ExecuteNonQuery();
-
-                m_dbConnection.Close();
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
             }
+
+            m_dbConnection.Close();
 
             m_FileSystemReadWriteMutex.ReleaseMutex();
 
