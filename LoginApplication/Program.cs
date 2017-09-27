@@ -259,6 +259,7 @@ namespace LoginApplication
                 command.ExecuteNonQuery();
 
                 m_dbConnection.Close();
+                GC.Collect();
             }
 
             // Forms
@@ -297,7 +298,15 @@ namespace LoginApplication
 
                 m_bLoginAndUploadForce = false;
 
-                TrackHooks(); // if I work less time like 20 sec and stop time. It is not being counted
+                m_ScreenshootTimer_interval = m_ScreenshootTimer_interval_initial;
+                m_TrackHooksTimer_interval = m_TrackHooksTimer_interval_initial;
+                m_ZipTimer_interval = m_ZipTimer_interval_initial;
+
+                m_ScreenshootTimer.Enabled = false;
+                m_ZipTimer.Enabled = false;
+                m_TrackHooksTimer.Enabled = false;
+
+                bForceStopTimers = true;
 
                 LogOut();
             };
@@ -309,7 +318,7 @@ namespace LoginApplication
 
                 bForceStopTimers = !args.isTracking;
 
-                TrackHooks();
+                TrackHooks(true, args.isTracking);
             };
 
             // Login form
@@ -371,7 +380,7 @@ namespace LoginApplication
                 {
                     m_TrackHooksTimer_interval = m_TrackHooksTimer_interval_initial;
 
-                    TrackHooks(true);
+                    TrackHooks(true, true);
                 }
                 else
                 {
@@ -382,11 +391,11 @@ namespace LoginApplication
 
                     int elapsed_secs = m_TrackHooksTimer_interval / 1000;
 
-                    int mod = elapsed_secs % 10;
+                    int mod = elapsed_secs % 7;
 
                     if (mod == 0)
                     {
-                        TrackHooks(false);
+                        TrackHooks(false, false);
                     }
                 }
             });
@@ -443,6 +452,8 @@ namespace LoginApplication
 
             url = url + "?token=" + m_Token;
 
+            m_Token = string.Empty;
+
             bw.DoWork += (object bw_sender, DoWorkEventArgs bw_e) =>
             {
                 bw_e.Result = string.Empty;
@@ -479,8 +490,6 @@ namespace LoginApplication
 
             bw.RunWorkerCompleted += (object bw_sender, RunWorkerCompletedEventArgs bw_args) =>
             {
-                m_Token = string.Empty;
-
                 if (m_wsConnection != null && m_wsConnection.IsAlive)
                 {
                     m_wsConnection.Close();
@@ -488,20 +497,10 @@ namespace LoginApplication
                     m_wsConnectionTimer.Enabled = false;
                 }
 
-                fm_Main.TrackTime(true);
-
                 fm_Main.Hide();
                 fm_Login.Show();
 
                 fm_Active = fm_Login;
-
-                m_ScreenshootTimer_interval = m_ScreenshootTimer_interval_initial;
-                m_TrackHooksTimer_interval = m_TrackHooksTimer_interval_initial;
-                m_ZipTimer_interval = m_ZipTimer_interval_initial; 
-
-                m_ScreenshootTimer.Enabled = false;
-                m_ZipTimer.Enabled = false;
-                m_TrackHooksTimer.Enabled = false;
 
                 fm_Login.login_enabled = true;
 
@@ -647,6 +646,7 @@ namespace LoginApplication
                         }
 
                         m_dbConnection.Close();
+                        GC.Collect();
 
                         m_FileSystemReadWriteMutex.ReleaseMutex();
                     }
@@ -690,6 +690,7 @@ namespace LoginApplication
                         }
 
                         m_dbConnection.Close();
+                        GC.Collect();
 
                         m_FileSystemReadWriteMutex.ReleaseMutex();
                     }
@@ -701,7 +702,7 @@ namespace LoginApplication
             bw.RunWorkerAsync();
         }
 
-        private void TrackHooks(bool bFullUpdate = true)
+        private void TrackHooks(bool bFullUpdate = true, bool bAddNewRecord = true)
         {
             if (m_Token == null || m_Token.Length == 0)
                 return;
@@ -713,6 +714,9 @@ namespace LoginApplication
 
             m_TrackHooksTimer.Enabled = false;
 
+            int zero = 0;
+            string zero_str = zero.ToString();
+
             string m_clicks = mouseClickCount.ToString();
             string k_clikcs = keyDownCount.ToString();
 
@@ -723,7 +727,6 @@ namespace LoginApplication
             string time_current_month = fm_Main.current_month_seconds.ToString();
 
             string current_time_str = DateTime.Now.ToString(@"yyyy-MM-dd HH:mm:ss");
-            string current_time_plus_second_str = DateTime.Now.AddSeconds(1).ToString(@"yyyy-MM-dd HH:mm:ss");
 
             m_FileSystemReadWriteMutex.WaitOne();
 
@@ -737,18 +740,25 @@ namespace LoginApplication
                 {
                     sql += "insert or replace into users (login, token) values ('" + login + "', '" + token + "');";
 
-                    sql += "update users_click set end_time = '" + current_time_str + "' where id = (SELECT MAX(id) FROM users_click) and end_time = start_time;";
-
-                    sql += "insert into users_click (login, mouse_clicks, keyboard_clicks, start_time, end_time) values (" +
-                        "'" + login + "'," +
-                        m_clicks + "," +
-                        k_clikcs + "," +
-                        "'" + current_time_plus_second_str + "'," +
-                        "'" + current_time_plus_second_str + "'" +
-                        ");";
+                    sql += "update users_click set " +
+                        "end_time = '" + current_time_str + "', " +
+                        "mouse_clicks = " + m_clicks + ", " +
+                        "keyboard_clicks = " + k_clikcs +
+                        " where id = (SELECT MAX(id) FROM users_click) and end_time = start_time;";
 
                     mouseClickCount = 0;
                     keyDownCount = 0;
+
+                    if (bAddNewRecord)
+                    {
+                        sql += "insert into users_click (login, mouse_clicks, keyboard_clicks, start_time, end_time) values (" +
+                            "'" + login + "'," +
+                            zero_str + "," +
+                            zero_str + "," +
+                            "'" + current_time_str + "'," +
+                            "'" + current_time_str + "'" +
+                            ");";
+                    }
                 }
 
                 sql += "insert or replace into work_month_tracking (login, month, time) values ('" + login + "', strftime('%Y-%m','now'), " + time_current_month + ");";
@@ -764,6 +774,7 @@ namespace LoginApplication
             }
 
             m_dbConnection.Close();
+            GC.Collect();
 
             m_FileSystemReadWriteMutex.ReleaseMutex();
 
@@ -930,6 +941,7 @@ namespace LoginApplication
                     }
 
                     m_dbConnection.Close();
+                    GC.Collect();
 
                     m_FileSystemReadWriteMutex.ReleaseMutex();
 
@@ -1128,6 +1140,7 @@ namespace LoginApplication
                     finally
                     {
                         m_dbConnection.Close();
+                        GC.Collect();
 
                         m_FileSystemReadWriteMutex.ReleaseMutex();
                     }
