@@ -105,9 +105,15 @@ namespace LoginApplication
                     rk_add.SetValue(appKeyName, "\"" + app_path + "\"");
                     rk_add.Close();
 
+                    var fi = new FileInfo(Application.ExecutablePath);
+                    Directory.SetCurrentDirectory(fi.DirectoryName);
+
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
-                    Application.Run(new ApplicationTrayContext());
+
+                    ApplicationTrayContext ctx = new ApplicationTrayContext();
+
+                    Application.Run(ctx);
                 }
                 else
                     MessageBox.Show("Application already started !", "Timetracker");
@@ -206,6 +212,7 @@ namespace LoginApplication
                 if (!bExists)
                     System.IO.Directory.CreateDirectory(subPath);
             }
+
             // create db
             {
 #if DEBUG_table_create
@@ -510,7 +517,7 @@ namespace LoginApplication
             bw.RunWorkerAsync();
         }
 
-        private Hashtable getSettings()
+        private static Hashtable getSettings()
         {
             Hashtable _ret = new Hashtable();
 
@@ -549,6 +556,7 @@ namespace LoginApplication
                         FileAccess.Read,
                         FileShare.Read)
                 );
+
                 XmlDocument doc = new XmlDocument();
                 string xmlIn = reader.ReadToEnd();
                 reader.Close();
