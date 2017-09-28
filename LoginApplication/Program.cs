@@ -576,11 +576,10 @@ namespace LoginApplication
 
             int screenshoot_timer_interval_sec = m_ScreenshootTimer_interval / 1000;
 
+            string current_time_str = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             string screenshoot_time_before_current_time_str = DateTime.Now.AddSeconds(-screenshoot_timer_interval_sec).ToString("yyyy-MM-dd HH:mm:ss");
 
             string current_time_filename_str = DateTime.Now.ToString("yyyy.MM.dd-HH.mm.ss");
-
-            string current_time_str = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
             var bw = new BackgroundWorker();
 
@@ -635,7 +634,7 @@ namespace LoginApplication
 
                         try
                         {
-                            string sql = "update users_click set screenshoot = '" + sreenshoot_name + "' where start_time <= '" + current_time_str + "' and end_time >= '" + current_time_str + "';";
+                            string sql = "update users_click set screenshoot = '" + sreenshoot_name + "' where start_time < '" + current_time_str + "' and end_time >= '" + current_time_str + "';";
 
                             SQLiteCommand command = new SQLiteCommand(sql, m_dbConnection);
                             command.ExecuteNonQuery();
@@ -653,6 +652,9 @@ namespace LoginApplication
                     else
                     {
                         // 5. Deleting screenshot is not deleting time.Like if I delete a screenshot it will delete time since last screenshot. In database, there should be field of screenshot name
+
+                        int zero = 0;
+                        string zero_str = zero.ToString();
 
                         string login = fm_Login.login;
 
@@ -676,7 +678,15 @@ namespace LoginApplication
 
                         try
                         {
-                            string sql = "delete from users_click where start_time >= '" + screenshoot_time_before_current_time_str + "' and end_time <='" + current_time_str + "';";
+                            string sql = "delete from users_click where end_time >= '" + screenshoot_time_before_current_time_str + "';"; // and start_time < '" + current_time_str + "';";
+
+                            sql += "insert into users_click (login, mouse_clicks, keyboard_clicks, start_time, end_time) values (" +
+                            "'" + login + "'," +
+                            zero_str + "," +
+                            zero_str + "," +
+                            "'" + current_time_str + "'," +
+                            "'" + current_time_str + "'" +
+                            ");";
 
                             sql += "insert or replace into work_month_tracking (login, month, time) values ('" + login + "', strftime('%Y-%m','now'), " + fm_Main.current_month_seconds + ");";
                             sql += "insert or replace into work_current_day_tracking (login, current_day, time) values ('" + login + "', strftime('%Y-%m-%d','now'), " + fm_Main.current_day_seconds + ");";
