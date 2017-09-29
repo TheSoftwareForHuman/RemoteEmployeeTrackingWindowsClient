@@ -77,6 +77,8 @@ namespace LoginApplication
         public const UInt32 SWP_NOMOVE = 0x0002;
         public const UInt32 TOPMOST_FLAGS = SWP_NOMOVE | SWP_NOSIZE;
 
+        public const string db_name = "db.sqlite";
+
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
@@ -146,26 +148,20 @@ namespace LoginApplication
 
         private string m_Token = string.Empty;
 
-        const string db_name = "db.sqlite";
         private readonly Mutex m_FileSystemReadWriteMutex = new Mutex();
 
         MouseHookListener mouseHookManager;
         KeyboardHookListener keyboardHookManager;
         uint mouseClickCount = 0, keyDownCount = 0;
 
-        bool bForceStopTimers = false;
-
         bool m_bLoggining = false;
         bool m_bLogouting = false;
 
-        System.Windows.Forms.Timer m_ScreenshootTimer;
+        System.Windows.Forms.Timer m_MainTimer;
+        const int m_MainTimerInterval = 1000;
         bool m_bTackingScreenshoot = false;
-        
-        System.Windows.Forms.Timer m_ZipTimer;
         bool m_bZipAndUploading = false;
         bool m_bFailedMessageShown = false;
-
-        System.Windows.Forms.Timer m_TrackHooksTimer;
         bool m_bTackingHooks = false;
 
         System.Windows.Forms.Timer m_InternetConnectionChecker;
@@ -177,18 +173,11 @@ namespace LoginApplication
         WebSocket m_wsConnection = null;
         System.Windows.Forms.Timer m_wsConnectionTimer;
 
-#if DEBUG_timings
-
-        const int m_ScreenshootTimer_interval_initial = 10 * 1000;
-        const int   m_TrackHooksTimer_interval_initial = 10 * 1000;
-        const int m_ZipTimer_interval_initial = 10 * 1000;
-#else
-
-        const int m_ScreenshootTimer_interval_initial = 3 * 60 * 1000; // 3 - minutes;
         const int m_TrackHooksTimer_interval_initial = 1 * 60 * 1000; // 1 - minutes
-        const int m_ZipTimer_interval_initial = 9 * 60 * 1000 + 3000; // 9 - minutes, 3 sec
+        const int m_ScreenshootTimer_interval_initial = 3 * 60 * 1000; // 3 - minutes;
+        const int m_ZipTimer_interval_initial = 9 * 60 * 1000; // 9 - minutes
         int m_ZipTimer_interval_additional_secs_initial = 0;
-#endif
+
         const int m_InternetConnectionChecker_interval_initial = 15 * 1000; // 15 sec
 
         int m_ScreenshootTimer_interval = m_ScreenshootTimer_interval_initial;
@@ -222,7 +211,8 @@ namespace LoginApplication
                 if (File.Exists("db.sqlite"))
                     File.Delete("db.sqlite");
 #endif
-                m_dbConnection = new SQLiteConnection("Data Source=" + db_name + ";Version=3;");
+                m_dbConnection = new SQLiteConnection("Data Source=" + Program.db_name + ";Version=3;");
+
                 m_dbConnection.Open();
 
                 string sql_users = "create table if not exists users" +
@@ -308,25 +298,18 @@ namespace LoginApplication
 
                 m_bLoginAndUploadForce = false;
 
-                m_ScreenshootTimer_interval = m_ScreenshootTimer_interval_initial;
                 m_TrackHooksTimer_interval = m_TrackHooksTimer_interval_initial;
+                m_ScreenshootTimer_interval = m_ScreenshootTimer_interval_initial;
                 m_ZipTimer_interval = m_ZipTimer_interval_initial;
+                m_ZipTimer_interval_additional_secs_initial = 0;
 
-                m_ScreenshootTimer.Enabled = false;
-                m_ZipTimer.Enabled = false;
-                m_TrackHooksTimer.Enabled = false;
-
-                bForceStopTimers = true;
+                m_MainTimer.Enabled = false;
 
                 LogOut();
             };
             fm_Main.TrackTimeEvent += (object sender, TrackTimeEventArgs args) =>
             {
-                m_ScreenshootTimer.Enabled = args.isTracking;
-                m_TrackHooksTimer.Enabled = args.isTracking;
-                m_ZipTimer.Enabled = args.isTracking;
-
-                bForceStopTimers = !args.isTracking;
+                m_MainTimer.Enabled = args.isTracking;
 
                 TrackHooks(true, args.isTracking);
             };
@@ -352,7 +335,7 @@ namespace LoginApplication
             keyboardHookManager.Enabled = true;
             keyboardHookManager.KeyDown += (object sender, KeyEventArgs e) => 
             {
-                if (m_TrackHooksTimer != null && m_TrackHooksTimer.Enabled)
+                if (m_MainTimer != null && m_MainTimer.Enabled)
                     keyDownCount++;
             };
 
@@ -360,31 +343,18 @@ namespace LoginApplication
             mouseHookManager.Enabled = true;
             mouseHookManager.MouseClick += (object sender, MouseEventArgs e) => 
             {
-                if (m_TrackHooksTimer != null && m_TrackHooksTimer.Enabled)
+                if (m_MainTimer != null && m_MainTimer.Enabled)
                     mouseClickCount++; 
             };
 
-            // 2. Every 3 minutes we will take one screenshot and save it in the file system.
-            m_ScreenshootTimer = new System.Windows.Forms.Timer();
-            m_ScreenshootTimer.Tick += new EventHandler((object sender, EventArgs e_args) =>
+            m_MainTimer = new System.Windows.Forms.Timer();
+            m_MainTimer.Tick += new EventHandler((object sender, EventArgs e_args) =>
             {
-                m_ScreenshootTimer_interval -= 1000;
+                if (m_Token == null || m_Token.Length == 0)
+                    return;
 
-                if (m_ScreenshootTimer_interval <= 0)
-                {
-                    m_ScreenshootTimer_interval = m_ScreenshootTimer_interval_initial;
-
-                    TakeScreenShootsTimerHandler();
-                }
-            });
-            m_ScreenshootTimer.Interval = 1000;
-            m_ScreenshootTimer.Enabled = false;
-
-            // 3. Save number of time keyboard and mouse clicks it to sqlite3 database every 1 minute.
-            m_TrackHooksTimer = new System.Windows.Forms.Timer();
-            m_TrackHooksTimer.Tick += new EventHandler((object sender, EventArgs e_args) => 
-            {
-                m_TrackHooksTimer_interval -= 1000;
+                // 3. Save number of time keyboard and mouse clicks it to sqlite3 database every 1 minute.
+                m_TrackHooksTimer_interval -= m_MainTimerInterval;
 
                 if (m_TrackHooksTimer_interval <= 0)
                 {
@@ -394,29 +364,30 @@ namespace LoginApplication
                 }
                 else
                 {
-                    // Every 10 second update the database. In this way we also do not need to worry about button clicking or anything
+                    // Every 3 second update the database. In this way we also do not need to worry about button clicking or anything
 
-                    if (m_Token == null || m_Token.Length == 0)
-                        return;
+                    int elapsed_secs = m_TrackHooksTimer_interval / 1000; // seconds
 
-                    int elapsed_secs = m_TrackHooksTimer_interval / 1000;
-
-                    int mod = elapsed_secs % 7;
+                    int mod = elapsed_secs % 3;
 
                     if (mod == 0)
                     {
                         TrackHooks(false, false);
                     }
                 }
-            });
-            m_TrackHooksTimer.Interval = 1000;
-            m_TrackHooksTimer.Enabled = false;
 
-            // 4. Every 9 minutes we will zip all screenshot data and database and upload to online. 
-            m_ZipTimer = new System.Windows.Forms.Timer();
-            m_ZipTimer.Tick += new EventHandler((object sender, EventArgs e_args) =>
-            {
-                m_ZipTimer_interval -= 1000;
+                // 2. Every 3 minutes we will take one screenshot and save it in the file system.
+                m_ScreenshootTimer_interval -= m_MainTimerInterval;
+
+                if (m_ScreenshootTimer_interval <= 0)
+                {
+                    m_ScreenshootTimer_interval = m_ScreenshootTimer_interval_initial;
+
+                    TakeScreenShootsTimerHandler();
+                }
+
+                // 4. Every 9 minutes we will zip all screenshot data and database and upload to online. 
+                m_ZipTimer_interval -= m_MainTimerInterval;
 
                 if (m_ZipTimer_interval <= 0 && !m_bTackingScreenshoot)
                 {
@@ -429,12 +400,12 @@ namespace LoginApplication
 
                 if (m_ZipTimer_interval <= 0 && m_bTackingScreenshoot)
                 {
-                    m_ZipTimer_interval_additional_secs_initial += 1000;
+                    m_ZipTimer_interval_additional_secs_initial += m_MainTimerInterval;
                     // Upload data to mysql only user decision about saving screenshot
                 }
             });
-            m_ZipTimer.Interval = 1000;
-            m_ZipTimer.Enabled = false;
+            m_MainTimer.Interval = m_MainTimerInterval;
+            m_MainTimer.Enabled = false;
 
             // Internals timers 
             m_wsConnectionTimer = new System.Windows.Forms.Timer();
@@ -655,6 +626,11 @@ namespace LoginApplication
                         {
                             string sql = "update users_click set screenshoot = '" + sreenshoot_name + "' where start_time < '" + current_time_str + "' and end_time >= '" + current_time_str + "';";
 
+                            //string sql = "update users_click "+
+                            //    " set screenshoot = '" + sreenshoot_name + "' " + 
+                            //    " where strftime('%s', '" + current_time_str + "') " +
+                            //    " between strftime('%s',start_time) and strftime('%s',end_time);";
+
                             SQLiteCommand command = new SQLiteCommand(sql, m_dbConnection);
                             command.ExecuteNonQuery();
                         }
@@ -741,8 +717,6 @@ namespace LoginApplication
 
             m_bTackingHooks = true;
 
-            m_TrackHooksTimer.Enabled = false;
-
             int zero = 0;
             string zero_str = zero.ToString();
 
@@ -808,8 +782,6 @@ namespace LoginApplication
             m_FileSystemReadWriteMutex.ReleaseMutex();
 
             m_bTackingHooks = false;
-
-            m_TrackHooksTimer.Enabled = true && !bForceStopTimers;
         }
 
         private void ZipAndUploadFunct()
@@ -824,11 +796,9 @@ namespace LoginApplication
             string upload_url = Program.GetServerURL().UPLOAD();
             string token_recieved = m_Token;
 
-            int _60_seconds = 60;
-#if DEBUG
-            _60_seconds = 10;
-#endif
-            string current_time_minus_minute_str = DateTime.Now.AddSeconds(-_60_seconds).ToString(@"yyyy-MM-dd HH:mm:ss");
+            int i_60_seconds = 60;
+
+            string current_time_minus_minute_str = DateTime.Now.AddSeconds(-i_60_seconds).ToString(@"yyyy-MM-dd HH:mm:ss");
 
             var bw = new BackgroundWorker();
 
@@ -867,8 +837,7 @@ namespace LoginApplication
                     {
                         if (Directory.Exists(zip_tmp_path))
                         {
-                            Console.WriteLine("That path exists already.");
-                            return;
+                            Directory.Delete(zip_tmp_path, true);
                         }
 
                         Directory.CreateDirectory(zip_tmp_path);
@@ -880,7 +849,7 @@ namespace LoginApplication
                             File.Copy(file_path, dest_path);
                         }
 
-                        File.Copy(db_name, zip_tmp_path + "\\" + db_name);
+                        File.Copy(Program.db_name, zip_tmp_path + "\\" + Program.db_name);
 
                         ZipFile.CreateFromDirectory(zip_tmp_path, zip_path);
 
