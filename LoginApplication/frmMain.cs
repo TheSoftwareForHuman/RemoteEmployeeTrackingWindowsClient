@@ -24,14 +24,15 @@ namespace LoginApplication
             timer = new System.Windows.Forms.Timer();
             timer.Tick += new EventHandler((object sender, EventArgs e_args) =>
             {
-                _current_time_seconds = (int)m_StopWatch.Elapsed.TotalSeconds;
+                _current_stop_watch_day_seconds = (int)m_StopWatch.Elapsed.TotalSeconds;
 
-                int elapsed = _current_time_seconds - _prev_current_day_seconds;
+                int elapsed = _current_stop_watch_day_seconds - _prev_stop_watch_day_seconds;
 
+                current_time_seconds += elapsed;
                 current_day_seconds += elapsed;
                 current_month_seconds += elapsed;
 
-                _prev_current_day_seconds = _current_time_seconds;
+                _prev_stop_watch_day_seconds = _current_stop_watch_day_seconds;
 
                 updateTimeLabels();
             });
@@ -67,7 +68,9 @@ namespace LoginApplication
             timer.Enabled = m_bIsTracking;
 
             current_time_seconds = 0;
-            _prev_current_day_seconds = 0;
+
+            _current_stop_watch_day_seconds = 0;
+            _prev_stop_watch_day_seconds = 0;
 
             updateTimeLabels();
 
@@ -121,7 +124,9 @@ namespace LoginApplication
         private int _current_time_seconds = 0;
         private int _current_month_seconds = 0;
         private int _current_day_seconds = 0;
-        private int _prev_current_day_seconds = 0;
+
+        private int _current_stop_watch_day_seconds = 0;
+        private int _prev_stop_watch_day_seconds = 0;
 
         private void button_logout_Click(object sender, EventArgs e)
         {
