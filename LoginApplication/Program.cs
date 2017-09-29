@@ -177,14 +177,17 @@ namespace LoginApplication
         WebSocket m_wsConnection = null;
         System.Windows.Forms.Timer m_wsConnectionTimer;
 
-#if DEBUG
+#if DEBUG_timings
+
         const int m_ScreenshootTimer_interval_initial = 10 * 1000;
         const int   m_TrackHooksTimer_interval_initial = 10 * 1000;
         const int m_ZipTimer_interval_initial = 10 * 1000;
 #else
+
         const int m_ScreenshootTimer_interval_initial = 3 * 60 * 1000; // 3 - minutes;
         const int m_TrackHooksTimer_interval_initial = 1 * 60 * 1000; // 1 - minutes
-        const int m_ZipTimer_interval_initial = 9 * 60 * 1000; // 9 - minutes
+        const int m_ZipTimer_interval_initial = 9 * 60 * 1000 + 3000; // 9 - minutes, 3 sec
+        int m_ZipTimer_interval_additional_secs_initial = 0;
 #endif
         const int m_InternetConnectionChecker_interval_initial = 15 * 1000; // 15 sec
 
@@ -371,7 +374,7 @@ namespace LoginApplication
                 {
                     m_ScreenshootTimer_interval = m_ScreenshootTimer_interval_initial;
 
-                    TakeScreenShootsTimerHandler(sender, e_args);
+                    TakeScreenShootsTimerHandler();
                 }
             });
             m_ScreenshootTimer.Interval = 1000;
@@ -415,11 +418,19 @@ namespace LoginApplication
             {
                 m_ZipTimer_interval -= 1000;
 
-                if (m_ZipTimer_interval <= 0)
+                if (m_ZipTimer_interval <= 0 && !m_bTackingScreenshoot)
                 {
-                    m_ZipTimer_interval = m_ZipTimer_interval_initial;
+                    m_ZipTimer_interval = m_ZipTimer_interval_initial - m_ZipTimer_interval_additional_secs_initial;
+
+                    m_ZipTimer_interval_additional_secs_initial = 0;
 
                     ZipAndUploadFunct();
+                }
+
+                if (m_ZipTimer_interval <= 0 && m_bTackingScreenshoot)
+                {
+                    m_ZipTimer_interval_additional_secs_initial += 1000;
+                    // Upload data to mysql only user decision about saving screenshot
                 }
             });
             m_ZipTimer.Interval = 1000;
@@ -575,7 +586,7 @@ namespace LoginApplication
             return (_ret);
         }
 
-        private void TakeScreenShootsTimerHandler(object sender, EventArgs e_args)
+        private void TakeScreenShootsTimerHandler()
         {
             if (m_bTackingScreenshoot)
                 return;
