@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Timers;
 using System.Windows.Forms;
 
@@ -23,9 +24,14 @@ namespace LoginApplication
             timer = new System.Windows.Forms.Timer();
             timer.Tick += new EventHandler((object sender, EventArgs e_args) =>
             {
-                current_time_seconds++;
-                current_day_seconds++;
-                current_month_seconds++;
+                _current_time_seconds = (int)m_StopWatch.Elapsed.TotalSeconds;
+
+                int elapsed = _current_time_seconds - _prev_current_day_seconds;
+
+                current_day_seconds += elapsed;
+                current_month_seconds += elapsed;
+
+                _prev_current_day_seconds = _current_time_seconds;
 
                 updateTimeLabels();
             });
@@ -45,14 +51,23 @@ namespace LoginApplication
         {
             m_bIsTracking = bTrack;
 
+            m_StopWatch.Reset();
+
             if (m_bIsTracking)
+            {
+                m_StopWatch.Start();
                 this.btn_Time.Text = "Stop Time";
+            }
             else
+            {
+                m_StopWatch.Stop();
                 this.btn_Time.Text = "Start Time";
+            }
 
             timer.Enabled = m_bIsTracking;
 
             current_time_seconds = 0;
+            _prev_current_day_seconds = 0;
 
             updateTimeLabels();
 
@@ -101,10 +116,12 @@ namespace LoginApplication
         private bool m_bIsTracking = false;
 
         private System.Windows.Forms.Timer timer;
+        Stopwatch m_StopWatch = new Stopwatch();
 
         private int _current_time_seconds = 0;
         private int _current_month_seconds = 0;
         private int _current_day_seconds = 0;
+        private int _prev_current_day_seconds = 0;
 
         private void button_logout_Click(object sender, EventArgs e)
         {
@@ -115,11 +132,11 @@ namespace LoginApplication
         }
     }
 
-    public class TrackTimeEventArgs : EventArgs 
+    public class TrackTimeEventArgs : EventArgs
     {
         public bool isTracking { get { return m_bIsTracking; } }
 
-        public TrackTimeEventArgs( bool bIsTracking )
+        public TrackTimeEventArgs(bool bIsTracking)
         {
             m_bIsTracking = bIsTracking;
         }
@@ -127,6 +144,6 @@ namespace LoginApplication
     }
     public delegate void TrackTimeEvent(object sender, TrackTimeEventArgs e);
 
-    public class         LogOutEventArgs : EventArgs {}
+    public class LogOutEventArgs : EventArgs { }
     public delegate void LogOutEvent(object sender, LogOutEventArgs e);
 }
