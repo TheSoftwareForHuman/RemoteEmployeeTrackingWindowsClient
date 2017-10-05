@@ -311,7 +311,7 @@ namespace LoginApplication
             {
                 m_MainTimer.Enabled = args.isTracking;
 
-                TrackHooks(true, args.isTracking);
+                TrackHooks(DateTime.Now, true, args.isTracking);
             };
 
             // Login form
@@ -353,6 +353,8 @@ namespace LoginApplication
                 if (m_Token == null || m_Token.Length == 0)
                     return;
 
+                DateTime current_datetime = DateTime.Now; // same datetime for all func
+
                 // 3. Save number of time keyboard and mouse clicks it to sqlite3 database every 1 minute.
                 m_TrackHooksTimer_interval -= m_MainTimerInterval;
 
@@ -360,7 +362,7 @@ namespace LoginApplication
                 {
                     m_TrackHooksTimer_interval = m_TrackHooksTimer_interval_initial;
 
-                    TrackHooks(true, true);
+                    TrackHooks(current_datetime, true, true);
                 }
                 else
                 {
@@ -372,7 +374,7 @@ namespace LoginApplication
 
                     if (mod == 0)
                     {
-                        TrackHooks(false, false);
+                        TrackHooks(current_datetime, false, false);
                     }
                 }
 
@@ -383,7 +385,7 @@ namespace LoginApplication
                 {
                     m_ScreenshootTimer_interval = m_ScreenshootTimer_interval_initial;
 
-                    TakeScreenShootsTimerHandler();
+                    TakeScreenShootsTimerHandler(current_datetime);
                 }
 
                 // 4. Every 9 minutes we will zip all screenshot data and database and upload to online. 
@@ -395,7 +397,7 @@ namespace LoginApplication
 
                     m_ZipTimer_interval_additional_secs_initial = 0;
 
-                    ZipAndUploadFunct();
+                    ZipAndUploadFunct(current_datetime);
                 }
 
                 if (m_ZipTimer_interval <= 0 && m_bTackingScreenshoot)
@@ -557,7 +559,7 @@ namespace LoginApplication
             return (_ret);
         }
 
-        private void TakeScreenShootsTimerHandler()
+        private void TakeScreenShootsTimerHandler( DateTime current_datetime)
         {
             if (m_bTackingScreenshoot)
                 return;
@@ -566,10 +568,10 @@ namespace LoginApplication
 
             int screenshoot_timer_interval_sec = m_ScreenshootTimer_interval / 1000;
 
-            string current_time_str = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            string screenshoot_time_before_current_time_str = DateTime.Now.AddSeconds(-screenshoot_timer_interval_sec).ToString("yyyy-MM-dd HH:mm:ss");
+            string current_time_str = current_datetime.ToString("yyyy-MM-dd HH:mm:ss");
+            string screenshoot_time_before_current_time_str = current_datetime.AddSeconds(-screenshoot_timer_interval_sec).ToString("yyyy-MM-dd HH:mm:ss");
 
-            string current_time_filename_str = DateTime.Now.ToString("yyyy.MM.dd-HH.mm.ss");
+            string current_time_filename_str = current_datetime.ToString("yyyy.MM.dd-HH.mm.ss");
 
             var bw = new BackgroundWorker();
 
@@ -707,7 +709,7 @@ namespace LoginApplication
             bw.RunWorkerAsync();
         }
 
-        private void TrackHooks(bool bFullUpdate = true, bool bAddNewRecord = true)
+        private void TrackHooks(DateTime current_time, bool bFullUpdate = true, bool bAddNewRecord = true)
         {
             if (m_Token == null || m_Token.Length == 0)
                 return;
@@ -729,7 +731,7 @@ namespace LoginApplication
             string time_current_day = fm_Main.current_day_seconds.ToString();
             string time_current_month = fm_Main.current_month_seconds.ToString();
 
-            string current_time_str = DateTime.Now.ToString(@"yyyy-MM-dd HH:mm:ss");
+            string current_time_str = current_time.ToString(@"yyyy-MM-dd HH:mm:ss");
 
             m_FileSystemReadWriteMutex.WaitOne();
 
@@ -784,7 +786,7 @@ namespace LoginApplication
             m_bTackingHooks = false;
         }
 
-        private void ZipAndUploadFunct()
+        private void ZipAndUploadFunct(DateTime current_datetime)
         {
             if (m_bZipAndUploading)
                 return;
@@ -798,7 +800,7 @@ namespace LoginApplication
 
             int i_60_seconds = 60;
 
-            string current_time_minus_minute_str = DateTime.Now.AddSeconds(-i_60_seconds).ToString(@"yyyy-MM-dd HH:mm:ss");
+            string current_time_minus_minute_str = current_datetime.AddSeconds(-i_60_seconds).ToString(@"yyyy-MM-dd HH:mm:ss");
 
             var bw = new BackgroundWorker();
 
@@ -811,7 +813,7 @@ namespace LoginApplication
 
                 bool bDone = true;
 
-                string time = DateTime.Now.ToString(@"MM.dd.yyyy-HH.mm.ss");
+                string time = current_datetime.ToString(@"MM.dd.yyyy-HH.mm.ss");
 
                 string start_path = "data";
                 string zip_tmp_path = "zip_tmp";
@@ -1159,7 +1161,7 @@ namespace LoginApplication
                     //  9. If there is no internet connection, it shows message no internet. but after internet comes alive it is not uploading again
                     if (bForceUploadFiles)
                     {
-                        ZipAndUploadFunct();
+                        ZipAndUploadFunct(DateTime.Now);
                     }
 
                     try
